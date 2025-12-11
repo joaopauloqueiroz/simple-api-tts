@@ -106,6 +106,13 @@ RUN ARCH=$(uname -m) && \
             chmod +x /usr/local/bin/piper && \
             echo "Instalando bibliotecas compartilhadas do Piper..." && \
             mkdir -p /usr/local/lib && \
+            echo "Diretório de build atual: $(pwd)" && \
+            echo "Procurando TODAS as bibliotecas .so no diretório de build..." && \
+            find . -name "*.so*" \( -type f -o -type l \) ! -path "*/CMakeFiles/*" 2>/dev/null | head -50 && \
+            echo "" && \
+            echo "Copiando TODAS as bibliotecas .so para /usr/local/lib..." && \
+            find . -name "*.so*" -type f ! -path "*/CMakeFiles/*" ! -path "*/test/*" 2>/dev/null -exec cp -v {} /usr/local/lib/ \; && \
+            echo "" && \
             echo "Procurando bibliotecas do Piper..." && \
             echo "Buscando libpiper*.so*..." && \
             find . -name "libpiper*.so*" -type f 2>/dev/null | while read lib; do \
@@ -264,10 +271,6 @@ RUN npm install
 
 # Copiar o resto dos arquivos
 COPY . .
-
-# Copiar script de diagnóstico e correção
-COPY fix-libraries.sh /usr/local/bin/fix-libraries.sh
-RUN chmod +x /usr/local/bin/fix-libraries.sh
 
 # Criar wrapper script para o Piper garantir LD_LIBRARY_PATH
 RUN echo '#!/bin/bash' > /usr/local/bin/piper-wrapper.sh && \
