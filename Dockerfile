@@ -11,22 +11,22 @@ RUN apt update && apt install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/* && \
     echo "Procurando onde o espeak-ng-data foi instalado..." && \
-    find /usr -name "phontab" 2>/dev/null && \
+    PHONTAB_PATH=$(find /usr -name "phontab" 2>/dev/null | head -1) && \
+    echo "phontab encontrado em: $PHONTAB_PATH" && \
     echo "" && \
     echo "Criando diretório /usr/share/espeak-ng-data se não existir..." && \
     mkdir -p /usr/share/espeak-ng-data && \
     echo "Copiando dados do espeak-ng para /usr/share/espeak-ng-data..." && \
     if [ -d /usr/lib/x86_64-linux-gnu/espeak-ng-data ]; then \
         echo "Copiando de /usr/lib/x86_64-linux-gnu/espeak-ng-data..." && \
-        cp -rv /usr/lib/x86_64-linux-gnu/espeak-ng-data/* /usr/share/espeak-ng-data/ 2>&1 | head -10; \
+        cp -r /usr/lib/x86_64-linux-gnu/espeak-ng-data/* /usr/share/espeak-ng-data/ && \
+        echo "✅ Dados copiados com sucesso"; \
     elif [ -d /usr/lib/espeak-ng-data ]; then \
         echo "Copiando de /usr/lib/espeak-ng-data..." && \
-        cp -rv /usr/lib/espeak-ng-data/* /usr/share/espeak-ng-data/ 2>&1 | head -10; \
-    elif [ -d /usr/share/espeak-ng-data.orig ]; then \
-        echo "Copiando de /usr/share/espeak-ng-data.orig..." && \
-        cp -rv /usr/share/espeak-ng-data.orig/* /usr/share/espeak-ng-data/ 2>&1 | head -10; \
+        cp -r /usr/lib/espeak-ng-data/* /usr/share/espeak-ng-data/ && \
+        echo "✅ Dados copiados com sucesso"; \
     else \
-        echo "⚠️ Aviso: Não foi possível encontrar os dados do espeak-ng"; \
+        echo "⚠️ Aviso: Não foi possível encontrar os dados do espeak-ng em /usr/lib"; \
     fi && \
     echo "" && \
     echo "Verificando phontab após correção:" && \
@@ -34,8 +34,18 @@ RUN apt update && apt install -y \
         echo "✅ phontab encontrado em /usr/share/espeak-ng-data/phontab" && \
         ls -lh /usr/share/espeak-ng-data/phontab; \
     else \
-        echo "❌ phontab ainda não encontrado em /usr/share/espeak-ng-data/"; \
-    fi
+        echo "❌ phontab ainda não encontrado em /usr/share/espeak-ng-data/" && \
+        echo "Tentando copiar diretamente do caminho encontrado..." && \
+        if [ -n "$PHONTAB_PATH" ] && [ -f "$PHONTAB_PATH" ]; then \
+            PHONTAB_DIR=$(dirname "$PHONTAB_PATH") && \
+            echo "Copiando de $PHONTAB_DIR..." && \
+            cp -r "$PHONTAB_DIR"/* /usr/share/espeak-ng-data/ && \
+            echo "✅ Dados copiados do caminho encontrado"; \
+        fi; \
+    fi && \
+    echo "" && \
+    echo "Conteúdo final de /usr/share/espeak-ng-data/:" && \
+    ls -lh /usr/share/espeak-ng-data/ | head -10
 
 # Baixar binário pré-compilado ou compilar o Piper
 WORKDIR /tmp
