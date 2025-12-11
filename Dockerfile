@@ -10,20 +10,32 @@ RUN apt update && apt install -y \
     espeak-ng-data \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/* && \
-    echo "Verificando instalação do espeak-ng-data..." && \
-    ls -lh /usr/share/espeak-ng-data/ 2>/dev/null | head -10 || echo "Diretório não encontrado" && \
-    if [ ! -f /usr/share/espeak-ng-data/phontab ]; then \
-        echo "phontab não encontrado, criando link simbólico..." && \
-        if [ -f /usr/lib/x86_64-linux-gnu/espeak-ng-data/phontab ]; then \
-            ln -sf /usr/lib/x86_64-linux-gnu/espeak-ng-data/* /usr/share/espeak-ng-data/ 2>/dev/null || \
-            cp -r /usr/lib/x86_64-linux-gnu/espeak-ng-data/* /usr/share/espeak-ng-data/ 2>/dev/null; \
-        elif [ -f /usr/lib/espeak-ng-data/phontab ]; then \
-            ln -sf /usr/lib/espeak-ng-data/* /usr/share/espeak-ng-data/ 2>/dev/null || \
-            cp -r /usr/lib/espeak-ng-data/* /usr/share/espeak-ng-data/ 2>/dev/null; \
-        fi; \
+    echo "Procurando onde o espeak-ng-data foi instalado..." && \
+    find /usr -name "phontab" 2>/dev/null && \
+    echo "" && \
+    echo "Criando diretório /usr/share/espeak-ng-data se não existir..." && \
+    mkdir -p /usr/share/espeak-ng-data && \
+    echo "Copiando dados do espeak-ng para /usr/share/espeak-ng-data..." && \
+    if [ -d /usr/lib/x86_64-linux-gnu/espeak-ng-data ]; then \
+        echo "Copiando de /usr/lib/x86_64-linux-gnu/espeak-ng-data..." && \
+        cp -rv /usr/lib/x86_64-linux-gnu/espeak-ng-data/* /usr/share/espeak-ng-data/ 2>&1 | head -10; \
+    elif [ -d /usr/lib/espeak-ng-data ]; then \
+        echo "Copiando de /usr/lib/espeak-ng-data..." && \
+        cp -rv /usr/lib/espeak-ng-data/* /usr/share/espeak-ng-data/ 2>&1 | head -10; \
+    elif [ -d /usr/share/espeak-ng-data.orig ]; then \
+        echo "Copiando de /usr/share/espeak-ng-data.orig..." && \
+        cp -rv /usr/share/espeak-ng-data.orig/* /usr/share/espeak-ng-data/ 2>&1 | head -10; \
+    else \
+        echo "⚠️ Aviso: Não foi possível encontrar os dados do espeak-ng"; \
     fi && \
+    echo "" && \
     echo "Verificando phontab após correção:" && \
-    ls -lh /usr/share/espeak-ng-data/phontab 2>/dev/null || echo "phontab ainda não encontrado"
+    if [ -f /usr/share/espeak-ng-data/phontab ]; then \
+        echo "✅ phontab encontrado em /usr/share/espeak-ng-data/phontab" && \
+        ls -lh /usr/share/espeak-ng-data/phontab; \
+    else \
+        echo "❌ phontab ainda não encontrado em /usr/share/espeak-ng-data/"; \
+    fi
 
 # Baixar binário pré-compilado ou compilar o Piper
 WORKDIR /tmp
