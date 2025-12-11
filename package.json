@@ -1,0 +1,16 @@
+{
+  "name": "piper-tts-api",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "postinstall": "node download-model.js",
+    "install-piper": "./install-piper.sh"
+  },
+  "dependencies": {
+    "express": "^4.19.0",
+    "uuid": "^9.0.0",
+    "axios": "^1.6.0"
+  }
+}

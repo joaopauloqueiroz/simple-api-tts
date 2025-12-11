@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  piper-tts-api:
+    build: .
+    ports:
+      - "3005:3005"
+    volumes:
+      - ./models:/app/models
+    environment:
+      - PORT=3005
+    restart: unless-stopped
+
