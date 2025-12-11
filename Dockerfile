@@ -278,8 +278,37 @@ RUN echo '#!/bin/bash' > /usr/local/bin/piper-wrapper.sh && \
     echo 'exec /usr/local/bin/piper "$@"' >> /usr/local/bin/piper-wrapper.sh && \
     chmod +x /usr/local/bin/piper-wrapper.sh
 
-# Executar script de diagnóstico e correção
-RUN /usr/local/bin/fix-libraries.sh
+# Diagnóstico e correção de bibliotecas
+RUN echo "=== Diagnóstico de Bibliotecas do Piper ===" && \
+    echo "1. Verificando dependências do binário piper:" && \
+    ldd /usr/local/bin/piper 2>&1 | grep -E "(not found|piper|phonemize|onnx)" || echo "Todas as dependências encontradas" && \
+    echo "" && \
+    echo "2. Bibliotecas em /usr/local/lib relacionadas ao Piper:" && \
+    ls -lh /usr/local/lib/*piper* /usr/local/lib/*phonemize* /usr/local/lib/*onnx* 2>/dev/null || echo "Nenhuma biblioteca encontrada" && \
+    echo "" && \
+    echo "3. Criando links simbólicos se necessário..." && \
+    cd /usr/local/lib && \
+    for lib in *.so.*.*; do \
+        if [ -f "$lib" ]; then \
+            base=$(echo "$lib" | sed 's/\.so\..*/\.so/') && \
+            major=$(echo "$lib" | sed 's/.*\.so\.\([0-9]*\).*/\1/') && \
+            if [ -n "$major" ] && [ "$major" != "$lib" ]; then \
+                link_name="${base}.${major}" && \
+                if [ ! -f "$link_name" ] && [ ! -L "$link_name" ]; then \
+                    ln -sf "$lib" "$link_name" && echo "  Criado link: $link_name -> $lib"; \
+                fi; \
+            fi; \
+        fi; \
+    done && \
+    echo "" && \
+    echo "4. Atualizando cache de bibliotecas:" && \
+    ldconfig && \
+    echo "" && \
+    echo "5. Verificando bibliotecas após correção:" && \
+    ls -lh /usr/local/lib/*piper* /usr/local/lib/*phonemize* /usr/local/lib/*onnx* 2>/dev/null | head -20 || echo "Nenhuma biblioteca encontrada" && \
+    echo "" && \
+    echo "6. Verificando dependências novamente:" && \
+    ldd /usr/local/bin/piper 2>&1 | head -20
 
 # Verificar se o modelo foi baixado
 RUN test -f ./models/pt_BR-faber-medium.onnx || (echo "Erro: Modelo não foi baixado" && exit 1)
