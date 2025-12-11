@@ -9,7 +9,21 @@ RUN apt update && apt install -y \
     espeak-ng \
     espeak-ng-data \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* && \
+    echo "Verificando instalação do espeak-ng-data..." && \
+    ls -lh /usr/share/espeak-ng-data/ 2>/dev/null | head -10 || echo "Diretório não encontrado" && \
+    if [ ! -f /usr/share/espeak-ng-data/phontab ]; then \
+        echo "phontab não encontrado, criando link simbólico..." && \
+        if [ -f /usr/lib/x86_64-linux-gnu/espeak-ng-data/phontab ]; then \
+            ln -sf /usr/lib/x86_64-linux-gnu/espeak-ng-data/* /usr/share/espeak-ng-data/ 2>/dev/null || \
+            cp -r /usr/lib/x86_64-linux-gnu/espeak-ng-data/* /usr/share/espeak-ng-data/ 2>/dev/null; \
+        elif [ -f /usr/lib/espeak-ng-data/phontab ]; then \
+            ln -sf /usr/lib/espeak-ng-data/* /usr/share/espeak-ng-data/ 2>/dev/null || \
+            cp -r /usr/lib/espeak-ng-data/* /usr/share/espeak-ng-data/ 2>/dev/null; \
+        fi; \
+    fi && \
+    echo "Verificando phontab após correção:" && \
+    ls -lh /usr/share/espeak-ng-data/phontab 2>/dev/null || echo "phontab ainda não encontrado"
 
 # Baixar binário pré-compilado ou compilar o Piper
 WORKDIR /tmp
