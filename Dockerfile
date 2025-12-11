@@ -105,13 +105,62 @@ RUN ARCH=$(uname -m) && \
             echo "Instalando bibliotecas compartilhadas do Piper..." && \
             mkdir -p /usr/local/lib && \
             echo "Procurando bibliotecas do Piper..." && \
-            find . -name "libpiper*.so*" -type f -exec sh -c 'echo "  Encontrado: $1" && cp "$1" /usr/local/lib/' _ {} \; 2>/dev/null || true && \
-            find . -path "*/piper_phonemize*" -name "*.so*" -type f -exec sh -c 'echo "  Encontrado: $1" && cp "$1" /usr/local/lib/' _ {} \; 2>/dev/null || true && \
-            find . -path "*/espeak_ng*" -name "*.so*" -type f -exec sh -c 'echo "  Encontrado: $1" && cp "$1" /usr/local/lib/' _ {} \; 2>/dev/null || true && \
+            echo "Buscando libpiper*.so*..." && \
+            find . -name "libpiper*.so*" -type f 2>/dev/null | while read lib; do \
+                echo "  Encontrado: $lib" && \
+                cp "$lib" /usr/local/lib/ && \
+                if [ -L "$lib" ]; then \
+                    link_target=$(readlink "$lib") && \
+                    link_dir=$(dirname "$lib") && \
+                    abs_target="$link_dir/$link_target" && \
+                    if [ -f "$abs_target" ]; then \
+                        cp "$abs_target" /usr/local/lib/ && \
+                        echo "    Copiado link simbólico: $(basename $abs_target)"; \
+                    fi; \
+                fi; \
+            done && \
+            echo "Buscando bibliotecas do piper_phonemize..." && \
+            find . -path "*/piper_phonemize*" -name "*.so*" -type f 2>/dev/null | while read lib; do \
+                echo "  Encontrado: $lib" && \
+                cp "$lib" /usr/local/lib/ && \
+                if [ -L "$lib" ]; then \
+                    link_target=$(readlink "$lib") && \
+                    link_dir=$(dirname "$lib") && \
+                    abs_target="$link_dir/$link_target" && \
+                    if [ -f "$abs_target" ]; then \
+                        cp "$abs_target" /usr/local/lib/ && \
+                        echo "    Copiado link simbólico: $(basename $abs_target)"; \
+                    fi; \
+                fi; \
+            done && \
+            echo "Buscando bibliotecas do espeak_ng..." && \
+            find . -path "*/espeak_ng*" -name "*.so*" -type f 2>/dev/null | while read lib; do \
+                echo "  Encontrado: $lib" && \
+                cp "$lib" /usr/local/lib/ && \
+                if [ -L "$lib" ]; then \
+                    link_target=$(readlink "$lib") && \
+                    link_dir=$(dirname "$lib") && \
+                    abs_target="$link_dir/$link_target" && \
+                    if [ -f "$abs_target" ]; then \
+                        cp "$abs_target" /usr/local/lib/ && \
+                        echo "    Copiado link simbólico: $(basename $abs_target)"; \
+                    fi; \
+                fi; \
+            done && \
             echo "Procurando outras bibliotecas relacionadas..." && \
             find . -name "*.so*" -type f -not -path "*/CMakeFiles/*" -not -path "*/test*" -not -path "*/example*" | while read lib; do \
                 if echo "$lib" | grep -qE "(piper|phonemize|espeak)"; then \
                     cp "$lib" /usr/local/lib/ 2>/dev/null && echo "  Copiado: $(basename $lib)" || true; \
+                fi; \
+            done && \
+            echo "Criando links simbólicos se necessário..." && \
+            cd /usr/local/lib && \
+            for lib in libpiper_phonemize.so*; do \
+                if [ -f "$lib" ] && [ ! -L "$lib" ]; then \
+                    libname=$(basename "$lib" | sed 's/\.so\..*/.so.1/') && \
+                    if [ "$lib" != "$libname" ] && [ ! -f "$libname" ]; then \
+                        ln -sf "$lib" "$libname" && echo "  Criado link: $libname -> $lib" || true; \
+                    fi; \
                 fi; \
             done && \
             echo "Bibliotecas instaladas em /usr/local/lib:" && \
@@ -165,12 +214,22 @@ RUN npm install
 # Copiar o resto dos arquivos
 COPY . .
 
+# Criar wrapper script para o Piper garantir LD_LIBRARY_PATH
+RUN echo '#!/bin/bash' > /usr/local/bin/piper-wrapper.sh && \
+    echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib:/lib:${LD_LIBRARY_PATH}' >> /usr/local/bin/piper-wrapper.sh && \
+    echo 'exec /usr/local/bin/piper "$@"' >> /usr/local/bin/piper-wrapper.sh && \
+    chmod +x /usr/local/bin/piper-wrapper.sh
+
 # Verificar se o modelo foi baixado
 RUN test -f ./models/pt_BR-faber-medium.onnx || (echo "Erro: Modelo não foi baixado" && exit 1)
 
-# Verificar se o Piper foi instalado corretamente
+# Verificar se o Piper foi instalado corretamente e suas dependências
 RUN if [ -f /usr/local/bin/piper ]; then \
+        echo "Verificando dependências do Piper..." && \
         export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH && \
+        ldd /usr/local/bin/piper 2>&1 | grep -E "(not found|piper|phonemize)" || echo "Todas as dependências encontradas" && \
+        echo "Bibliotecas do Piper em /usr/local/lib:" && \
+        ls -lh /usr/local/lib/libpiper* 2>/dev/null || echo "  Nenhuma biblioteca libpiper encontrada" && \
         /usr/local/bin/piper --version || echo "Aviso: piper --version falhou, mas o binário existe"; \
     else \
         echo "❌ Erro: Piper não foi instalado corretamente"; \

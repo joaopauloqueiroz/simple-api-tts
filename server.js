@@ -40,11 +40,17 @@ app.post("/tts", async (req, res) => {
   const output = `/tmp/${uuid()}.wav`;
   
   // Usar spawn para maior segurança (evita injeção de comandos)
-  const piperProcess = spawn("piper", ["-m", MODEL_PATH, "-f", output], {
+  // Usar wrapper script que garante LD_LIBRARY_PATH está configurado
+  const piperCommand = fs.existsSync("/usr/local/bin/piper-wrapper.sh") 
+    ? "/usr/local/bin/piper-wrapper.sh" 
+    : "piper";
+  
+  const piperProcess = spawn(piperCommand, ["-m", MODEL_PATH, "-f", output], {
     stdio: ["pipe", "pipe", "pipe"],
     env: {
       ...process.env,
-      LD_LIBRARY_PATH: "/usr/local/lib:" + (process.env.LD_LIBRARY_PATH || "")
+      LD_LIBRARY_PATH: "/usr/local/lib:/usr/lib:/lib:" + (process.env.LD_LIBRARY_PATH || ""),
+      PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin"
     }
   });
 
