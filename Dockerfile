@@ -263,9 +263,17 @@ RUN ARCH=$(uname -m) && \
                 fi; \
             done && \
             echo "/usr/local/lib" > /etc/ld.so.conf.d/piper.conf && \
-            ldconfig -v 2>&1 | grep -E "(piper|phonemize|espeak)" | head -5 || true && \
-            echo "Verificando se as bibliotecas podem ser encontradas..." && \
-            ldconfig -p | grep -E "(piper|phonemize|espeak)" | head -5 || echo "  Aviso: bibliotecas não encontradas no cache" && \
+            ldconfig && \
+            echo "" && \
+            echo "=== VERIFICAÇÃO FINAL DE BIBLIOTECAS ===" && \
+            echo "Bibliotecas em /usr/local/lib:" && \
+            ls -lh /usr/local/lib/*.so* 2>/dev/null | grep -E "(piper|phonemize|onnx)" | head -20 || echo "  Nenhuma biblioteca encontrada" && \
+            echo "" && \
+            echo "Cache do ldconfig:" && \
+            ldconfig -p | grep -E "(piper|phonemize|onnx)" | head -10 || echo "  Nenhuma biblioteca no cache" && \
+            echo "" && \
+            echo "Dependências do binário piper:" && \
+            ldd /usr/local/bin/piper 2>&1 | head -20 && \
             echo "✅ Piper e bibliotecas instalados com sucesso"; \
         elif [ -f src/piper ]; then \
             cp src/piper /usr/local/bin/piper && \
