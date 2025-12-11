@@ -136,17 +136,34 @@ RUN ARCH=$(uname -m) && \
                 fi; \
             done && \
             echo "Buscando especificamente libpiper_phonemize.so.1..." && \
-            find . -name "libpiper_phonemize.so*" -type f 2>/dev/null | while read lib; do \
-                echo "  Encontrado libpiper_phonemize: $lib" && \
-                cp -v "$lib" /usr/local/lib/ && \
+            find . -name "*phonemize*.so*" -o -name "*phonemize*.so*" -type l 2>/dev/null | while read lib; do \
+                echo "  Encontrado (phonemize): $lib" && \
+                cp -v "$lib" /usr/local/lib/ 2>&1 && \
                 if [ -L "$lib" ]; then \
                     link_target=$(readlink "$lib") && \
                     link_dir=$(dirname "$lib") && \
                     abs_target="$link_dir/$link_target" && \
                     if [ -f "$abs_target" ]; then \
-                        cp -v "$abs_target" /usr/local/lib/ && \
+                        cp -v "$abs_target" /usr/local/lib/ 2>&1 && \
                         echo "    Copiado target do link: $(basename $abs_target)"; \
                     fi; \
+                fi; \
+            done && \
+            echo "Buscando TODAS as bibliotecas que contenham 'piper' ou 'phonemize'..." && \
+            find . \( -name "*piper*.so*" -o -name "*phonemize*.so*" \) -type f 2>/dev/null | while read lib; do \
+                echo "  Copiando: $lib -> /usr/local/lib/$(basename $lib)" && \
+                cp -v "$lib" /usr/local/lib/ 2>&1 || echo "    Erro ao copiar: $lib"; \
+            done && \
+            find . \( -name "*piper*.so*" -o -name "*phonemize*.so*" \) -type l 2>/dev/null | while read lib; do \
+                echo "  Processando link: $lib" && \
+                link_target=$(readlink "$lib") && \
+                link_dir=$(dirname "$lib") && \
+                abs_target="$link_dir/$link_target" && \
+                if [ -f "$abs_target" ]; then \
+                    echo "    Copiando target: $abs_target -> /usr/local/lib/$(basename $abs_target)" && \
+                    cp -v "$abs_target" /usr/local/lib/ 2>&1 || echo "      Erro ao copiar target"; \
+                    echo "    Copiando link: $lib -> /usr/local/lib/$(basename $lib)" && \
+                    cp -v "$lib" /usr/local/lib/ 2>&1 || echo "      Erro ao copiar link"; \
                 fi; \
             done && \
             echo "Buscando bibliotecas do espeak_ng..." && \
@@ -248,11 +265,18 @@ RUN npm install
 # Copiar o resto dos arquivos
 COPY . .
 
+# Copiar script de diagnóstico e correção
+COPY fix-libraries.sh /usr/local/bin/fix-libraries.sh
+RUN chmod +x /usr/local/bin/fix-libraries.sh
+
 # Criar wrapper script para o Piper garantir LD_LIBRARY_PATH
 RUN echo '#!/bin/bash' > /usr/local/bin/piper-wrapper.sh && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib:/lib:${LD_LIBRARY_PATH}' >> /usr/local/bin/piper-wrapper.sh && \
     echo 'exec /usr/local/bin/piper "$@"' >> /usr/local/bin/piper-wrapper.sh && \
     chmod +x /usr/local/bin/piper-wrapper.sh
+
+# Executar script de diagnóstico e correção
+RUN /usr/local/bin/fix-libraries.sh
 
 # Verificar se o modelo foi baixado
 RUN test -f ./models/pt_BR-faber-medium.onnx || (echo "Erro: Modelo não foi baixado" && exit 1)
