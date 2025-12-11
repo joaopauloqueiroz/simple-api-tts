@@ -103,14 +103,19 @@ RUN ARCH=$(uname -m) && \
             cp "$PIPER_BINARY" /usr/local/bin/piper && \
             chmod +x /usr/local/bin/piper && \
             echo "Instalando bibliotecas compartilhadas do Piper..." && \
-            find . -name "libpiper*.so*" -type f -exec cp {} /usr/local/lib/ \; 2>/dev/null || true && \
-            find . -path "*/piper_phonemize*" -name "*.so*" -type f -exec cp {} /usr/local/lib/ \; 2>/dev/null || true && \
-            find . -path "*/espeak_ng*" -name "*.so*" -type f -exec cp {} /usr/local/lib/ \; 2>/dev/null || true && \
-            find . -name "*.so*" -type f -not -path "*/CMakeFiles/*" -not -path "*/test*" | while read lib; do \
+            mkdir -p /usr/local/lib && \
+            echo "Procurando bibliotecas do Piper..." && \
+            find . -name "libpiper*.so*" -type f -exec sh -c 'echo "  Encontrado: $1" && cp "$1" /usr/local/lib/' _ {} \; 2>/dev/null || true && \
+            find . -path "*/piper_phonemize*" -name "*.so*" -type f -exec sh -c 'echo "  Encontrado: $1" && cp "$1" /usr/local/lib/' _ {} \; 2>/dev/null || true && \
+            find . -path "*/espeak_ng*" -name "*.so*" -type f -exec sh -c 'echo "  Encontrado: $1" && cp "$1" /usr/local/lib/' _ {} \; 2>/dev/null || true && \
+            echo "Procurando outras bibliotecas relacionadas..." && \
+            find . -name "*.so*" -type f -not -path "*/CMakeFiles/*" -not -path "*/test*" -not -path "*/example*" | while read lib; do \
                 if echo "$lib" | grep -qE "(piper|phonemize|espeak)"; then \
                     cp "$lib" /usr/local/lib/ 2>/dev/null && echo "  Copiado: $(basename $lib)" || true; \
                 fi; \
             done && \
+            echo "Bibliotecas instaladas em /usr/local/lib:" && \
+            ls -lh /usr/local/lib/libpiper* /usr/local/lib/libespeak* 2>/dev/null | head -10 || echo "  (nenhuma biblioteca encontrada)" && \
             echo "Instalando arquivos de dados do espeak-ng..." && \
             find . -path "*/espeak_ng*" -type d -name "espeak-ng-data" | while read datadir; do \
                 if [ -d "$datadir" ]; then \
@@ -126,9 +131,10 @@ RUN ARCH=$(uname -m) && \
                     echo "  Dados do espeak-ng copiados de: $datadir" || true; \
                 fi; \
             done && \
-            export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH && \
             echo "/usr/local/lib" > /etc/ld.so.conf.d/piper.conf && \
-            ldconfig && \
+            ldconfig -v 2>&1 | grep -E "(piper|phonemize|espeak)" | head -5 || true && \
+            echo "Verificando se as bibliotecas podem ser encontradas..." && \
+            ldconfig -p | grep -E "(piper|phonemize|espeak)" | head -5 || echo "  Aviso: bibliotecas não encontradas no cache" && \
             echo "✅ Piper e bibliotecas instalados com sucesso"; \
         elif [ -f src/piper ]; then \
             cp src/piper /usr/local/bin/piper && \
@@ -171,7 +177,16 @@ RUN if [ -f /usr/local/bin/piper ]; then \
         exit 1; \
     fi
 
+# Configurar variáveis de ambiente para encontrar bibliotecas
 ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+ENV PATH=/usr/local/bin:$PATH
+
+# Verificar se todas as bibliotecas necessárias estão presentes
+RUN echo "Verificando bibliotecas instaladas..." && \
+    ls -lh /usr/local/lib/libpiper* /usr/local/lib/libespeak* 2>/dev/null | head -10 && \
+    ldconfig -p | grep -E "(piper|phonemize|espeak)" | head -5 || echo "Aviso: algumas bibliotecas podem não estar no cache" && \
+    echo "Verificando se o Piper pode encontrar suas dependências..." && \
+    ldd /usr/local/bin/piper 2>&1 | grep -E "(not found|piper|phonemize|espeak)" | head -5 || echo "Todas as dependências encontradas"
 
 EXPOSE 3005
 
