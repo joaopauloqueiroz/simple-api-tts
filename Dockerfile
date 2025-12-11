@@ -19,14 +19,30 @@ RUN ARCH=$(uname -m) && \
         echo "Tentando baixar binário pré-compilado para x86_64..." && \
         (wget -q --show-progress https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_amd64.tar.gz -O piper.tar.gz 2>&1 || \
          wget -q --show-progress https://github.com/rhasspy/piper/releases/download/v1.1.0/piper_amd64.tar.gz -O piper.tar.gz 2>&1 || \
+         wget -q --show-progress https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz -O piper.tar.gz 2>&1 || \
          echo "Binários pré-compilados não encontrados, será necessário compilar") && \
         if [ -f piper.tar.gz ]; then \
             echo "Extraindo binário..." && \
-            tar -xzf piper.tar.gz && \
-            find . -name "piper" -type f -executable | head -1 | xargs -I {} cp {} /usr/local/bin/piper && \
-            chmod +x /usr/local/bin/piper && \
-            rm -rf piper* && \
-            echo "✅ Piper instalado via binário pré-compilado"; \
+            mkdir -p piper_extracted && \
+            tar -xzf piper.tar.gz -C piper_extracted && \
+            cd piper_extracted && \
+            echo "Conteúdo extraído:" && \
+            find . -type f | head -20 && \
+            echo "" && \
+            echo "Procurando binário piper..." && \
+            PIPER_BIN=$(find . -name "piper" -type f -executable | head -1) && \
+            if [ -n "$PIPER_BIN" ] && [ -f "$PIPER_BIN" ]; then \
+                echo "Binário encontrado em: $PIPER_BIN" && \
+                cp "$PIPER_BIN" /usr/local/bin/piper && \
+                chmod +x /usr/local/bin/piper && \
+                echo "Procurando e copiando bibliotecas compartilhadas..." && \
+                find . -name "*.so*" -type f -exec cp -v {} /usr/local/lib/ \; 2>&1 && \
+                find . -name "lib" -type d -exec cp -rv {}/* /usr/local/lib/ \; 2>/dev/null || true && \
+                ldconfig && \
+                echo "✅ Piper instalado via binário pré-compilado"; \
+            fi && \
+            cd /tmp && \
+            rm -rf piper* piper_extracted; \
         fi; \
     fi && \
     if [ ! -f /usr/local/bin/piper ]; then \
@@ -111,7 +127,15 @@ RUN ARCH=$(uname -m) && \
             find . -name "*.so*" \( -type f -o -type l \) ! -path "*/CMakeFiles/*" 2>/dev/null | head -50 && \
             echo "" && \
             echo "Copiando TODAS as bibliotecas .so para /usr/local/lib..." && \
-            find . -name "*.so*" -type f ! -path "*/CMakeFiles/*" ! -path "*/test/*" 2>/dev/null -exec cp -v {} /usr/local/lib/ \; && \
+            find . -name "*.so*" -type f ! -path "*/CMakeFiles/*" ! -path "*/test/*" 2>/dev/null | while read lib; do \
+                echo "  Copiando: $lib" && \
+                cp -v "$lib" /usr/local/lib/ 2>&1 || echo "    Erro ao copiar: $lib"; \
+            done && \
+            find . -name "*.so*" -type l ! -path "*/CMakeFiles/*" ! -path "*/test/*" 2>/dev/null | while read lib; do \
+                echo "  Copiando link: $lib" && \
+                target=$(readlink "$lib") && \
+                cp -v "$lib" /usr/local/lib/ 2>&1 || echo "    Erro ao copiar link: $lib"; \
+            done && \
             echo "" && \
             echo "Procurando bibliotecas do Piper..." && \
             echo "Buscando libpiper*.so*..." && \
