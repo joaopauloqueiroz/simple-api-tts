@@ -96,6 +96,8 @@ RUN ARCH=$(uname -m) && \
             -DCMAKE_C_FLAGS="-I/usr/local/include" && \
         cmake --build . --config Release --parallel $(nproc) || \
         cmake --build . --config Release -j1 && \
+        echo "Listando TODAS as bibliotecas .so geradas..." && \
+        find . -name "*.so*" -type f -o -name "*.so*" -type l 2>/dev/null | grep -v CMakeFiles | head -30 && \
         echo "Buscando binário compilado..." && \
         PIPER_BINARY=$(find . -type f -executable -name "piper" ! -path "*/test_piper" 2>/dev/null | head -1) && \
         if [ -n "$PIPER_BINARY" ] && [ -f "$PIPER_BINARY" ]; then \
@@ -120,16 +122,30 @@ RUN ARCH=$(uname -m) && \
                 fi; \
             done && \
             echo "Buscando bibliotecas do piper_phonemize..." && \
-            find . -path "*/piper_phonemize*" -name "*.so*" -type f 2>/dev/null | while read lib; do \
+            find . -path "*phonemize*" -name "*.so*" -type f 2>/dev/null | while read lib; do \
                 echo "  Encontrado: $lib" && \
-                cp "$lib" /usr/local/lib/ && \
+                cp -v "$lib" /usr/local/lib/ && \
                 if [ -L "$lib" ]; then \
                     link_target=$(readlink "$lib") && \
                     link_dir=$(dirname "$lib") && \
                     abs_target="$link_dir/$link_target" && \
                     if [ -f "$abs_target" ]; then \
-                        cp "$abs_target" /usr/local/lib/ && \
+                        cp -v "$abs_target" /usr/local/lib/ && \
                         echo "    Copiado link simbólico: $(basename $abs_target)"; \
+                    fi; \
+                fi; \
+            done && \
+            echo "Buscando especificamente libpiper_phonemize.so.1..." && \
+            find . -name "libpiper_phonemize.so*" -type f 2>/dev/null | while read lib; do \
+                echo "  Encontrado libpiper_phonemize: $lib" && \
+                cp -v "$lib" /usr/local/lib/ && \
+                if [ -L "$lib" ]; then \
+                    link_target=$(readlink "$lib") && \
+                    link_dir=$(dirname "$lib") && \
+                    abs_target="$link_dir/$link_target" && \
+                    if [ -f "$abs_target" ]; then \
+                        cp -v "$abs_target" /usr/local/lib/ && \
+                        echo "    Copiado target do link: $(basename $abs_target)"; \
                     fi; \
                 fi; \
             done && \
@@ -155,14 +171,32 @@ RUN ARCH=$(uname -m) && \
             done && \
             echo "Criando links simbólicos se necessário..." && \
             cd /usr/local/lib && \
+            echo "Bibliotecas libpiper_phonemize encontradas:" && \
+            ls -lh libpiper_phonemize* 2>/dev/null || echo "  Nenhuma encontrada" && \
             for lib in libpiper_phonemize.so*; do \
                 if [ -f "$lib" ] && [ ! -L "$lib" ]; then \
-                    libname=$(basename "$lib" | sed 's/\.so\..*/.so.1/') && \
-                    if [ "$lib" != "$libname" ] && [ ! -f "$libname" ]; then \
-                        ln -sf "$lib" "$libname" && echo "  Criado link: $libname -> $lib" || true; \
+                    echo "  Processando: $lib" && \
+                    if echo "$lib" | grep -q "\.so\.1$"; then \
+                        echo "    Já é .so.1, ok"; \
+                    else \
+                        libname=$(basename "$lib" | sed 's/\.so\..*/.so.1/') && \
+                        if [ "$lib" != "$libname" ] && [ ! -f "$libname" ] && [ ! -L "$libname" ]; then \
+                            ln -sf "$lib" "$libname" && echo "    Criado link: $libname -> $lib" || true; \
+                        fi; \
                     fi; \
                 fi; \
             done && \
+            echo "Verificando se libpiper_phonemize.so.1 existe..." && \
+            if [ -f "libpiper_phonemize.so.1" ] || [ -L "libpiper_phonemize.so.1" ]; then \
+                echo "  ✅ libpiper_phonemize.so.1 encontrado"; \
+            else \
+                echo "  ⚠️ libpiper_phonemize.so.1 NÃO encontrado, tentando criar..." && \
+                for lib in libpiper_phonemize.so*; do \
+                    if [ -f "$lib" ]; then \
+                        ln -sf "$lib" "libpiper_phonemize.so.1" && echo "    Criado link libpiper_phonemize.so.1 -> $lib" && break; \
+                    fi; \
+                done; \
+            fi && \
             echo "Bibliotecas instaladas em /usr/local/lib:" && \
             ls -lh /usr/local/lib/libpiper* /usr/local/lib/libespeak* 2>/dev/null | head -10 || echo "  (nenhuma biblioteca encontrada)" && \
             echo "Instalando arquivos de dados do espeak-ng..." && \
